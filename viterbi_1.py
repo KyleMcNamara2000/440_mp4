@@ -8,7 +8,7 @@ import math
 
 def getCounts(train):
     #I = map tag -> # times at start
-    #T = map tagA -> dict(tagB, # times showed up before tagA)
+    #T = map tagA -> dict(tagB, # times showed up after tagA)
     #E = map tag -> dict(word, # times tag made this word)
     I = {}
     T = {}
@@ -31,18 +31,14 @@ def getCounts(train):
                     else:
                         miniDict[sentence[i + 1][1]] = 1
 
-                    if sentence[i][1] in tCounts:
-                        tCounts[sentence[i][1]] += 1
-                    else:
-                        tCounts[sentence[i][1]] = 1
                 else:
                     T[sentence[i][1]] = {}
                     T[sentence[i][1]][sentence[i + 1][1]] = 1
 
-                    if sentence[i][1] in tCounts:
-                        tCounts[sentence[i][1]] += 1
-                    else:
-                        tCounts[sentence[i][1]] = 1
+                if sentence[i][1] in tCounts:
+                    tCounts[sentence[i][1]] += 1
+                else:
+                    tCounts[sentence[i][1]] = 1
 
     for sentence in train:
         for pair in sentence:
@@ -53,19 +49,15 @@ def getCounts(train):
                 else:
                     miniDict[pair[0]] = 1
 
-                if pair[1] in eCounts:
-                    eCounts[pair[1]] += 1
-                else:
-                    eCounts[pair[1]] = 1
             else:
                 miniDict = {}
                 miniDict[pair[0]] = 1
                 E[pair[1]] = miniDict
 
-                if pair[1] in eCounts:
-                    eCounts[pair[1]] += 1
-                else:
-                    eCounts[pair[1]] = 1
+            if pair[1] in eCounts:
+                eCounts[pair[1]] += 1
+            else:
+                eCounts[pair[1]] = 1
 
     return I, T, E, iCount, tCounts, eCounts
 
@@ -102,6 +94,7 @@ def P_s(tag, internalMap, iCount, smoothing_parameter):
             return math.log(float(iCount + smoothing_parameter) / (iCount + smoothing_parameter * (iCount + 1)))
         else:
             return math.log((0.0 + smoothing_parameter) / (iCount + smoothing_parameter * (iCount + 1)))
+    print("bad")
     return 0
 
 #A=prev tag, B=curr tag
@@ -125,7 +118,6 @@ def getUniqueTags(emissionMap):
         if tag not in S:
             S.add(tag)
             L.append(tag)
-    print(L)
     return L
 
 def buildDaTrellis(internalMap, transitionMap, emissionMap, iCount, tCounts, eCounts, sentence, smoothing_parameter):
@@ -145,34 +137,107 @@ def buildDaTrellis(internalMap, transitionMap, emissionMap, iCount, tCounts, eCo
     uniqueTags = getUniqueTags(emissionMap)
     rows, cols = (len(sentence), len(uniqueTags))
     v = [[0 for i in range(cols)] for j in range(rows)]
-    b = [[0 for i in range(cols)] for j in range(rows)]
+    b = [["" for i in range(cols)] for j in range(rows)]
     for i in range(rows):
         for j in range(cols):
             tagB = uniqueTags[j]
-            currWord = sentence[i][0]
+            currWord = sentence[i]
+            #print(currWord)
             # base case:
-            if i == 0:
-                v[i][j] = P_s(tagB, internalMap, iCount, smoothing_parameter) + P_e(currWord, tagB, emissionMap, eCounts, smoothing_parameter) #PS(t)∗PE(w1∣t)
+            if i == 0 and j == 0:
+                v[i][j] = 0
+            elif i == 0:
+                v[i][j] = float('-inf')
+                #v[i][j] = P_s(tagB, internalMap, iCount, smoothing_parameter) + P_e(currWord, tagB, emissionMap, eCounts, smoothing_parameter) #PS(t)∗PE(w1∣t)
             else:
                 max = float('-inf')
                 bestTag = None
+                Ai = 0
                 for tagA in uniqueTags:
                     if tagA != 'END':
-                        curr = v[i - 1][j] + P_t(tagA, tagB, transitionMap, tCounts, smoothing_parameter) + P_e(currWord, tagB, emissionMap, eCounts, smoothing_parameter)
+                        oldV = v[i - 1][Ai]
+                        curr = oldV + P_t(tagA, tagB, transitionMap, tCounts, smoothing_parameter) + P_e(currWord, tagB, emissionMap, eCounts, smoothing_parameter)
                         if curr > max:
                             max = curr
                             bestTag = tagA
+                    Ai += 1
                 v[i][j] = max
                 b[i][j] = bestTag
+                #print("bt", bestTag)
 
-
-
+    '''
     for i in range(rows):
         hey = ""
         for j in range(cols):
-            hey += str(v[i][j]) + ", "
+            hey += str(v[i][j]) + " " + str(b[i][j]) + ", "
         print(hey)
-    return 0
+    print("\n\n\n\n\n")
+    '''
+
+
+    return v, b
+
+'''
+def getIndexOfTag(tagArr, tag):
+    for i in range(len(tagArr)):
+        if tagArr[i] == tag:
+            return i
+    print("uh ohhhhhhhhhhhhh")
+    return -1
+'''
+
+#pick the best tag B in the final (time=n) column. Trace backwards from B, using the values in b, to produce the output tag sequence
+def getPath(v, b, sentence, emissionMap):
+    uniqueTags = getUniqueTags(emissionMap)
+    rows, cols = (len(v), len(v[0]))
+    path = []
+    path.append((sentence[rows - 1], 'END'))
+
+    #do last col calculation
+    bestIndex = -1
+    max = float('-inf')
+    for j in range(cols):
+        if v[rows - 1][j] > max:
+            max = v[rows - 1][j]
+            bestIndex = j
+
+    #do middle calcs
+    for i in range(rows - 2, 0, -1):
+        path.append((sentence[i], b[i + 1][bestIndex]))
+        bestIndex = uniqueTags.index(b[i + 1][bestIndex])
+
+    #add start and reverse path
+    path.append((sentence[0], 'START'))
+    path.reverse()
+    return path
+
+    '''
+    rows, cols = (len(sentence), len(getUniqueTags(emissionMap)))
+    path = []
+    path.append((sentence[rows - 1], 'END'))
+    prev = None
+    for ii in range(rows):
+        i = rows - ii - 1
+        if i == 0:
+            path.append((sentence[i], 'START'))
+        elif i == rows - 1:
+            bestTag = None
+            max = float('-inf')
+            for j in range(cols):
+                if v[i][j] > max:
+                    max = v[i][j]
+                    bestTag = b[i][j]
+            #print("pair:", (sentence[i - 1], bestTag))
+            path.append((sentence[i - 1], bestTag))
+            prev = bestTag
+        elif i > 1:
+            #print("pair:", (sentence[i - 1], prev))
+            path.append((sentence[i - 1], prev))
+            prev = b[i][getIndexOfTag(b[i], prev)]
+
+    path.reverse()
+    return path
+    '''
 
 
 
@@ -188,6 +253,16 @@ def viterbi_1(train, test):
     # E = map tag -> dict(word, # times tag made this word)
     internalMap, transitionMap, emissionMap, iCount, tCounts, eCounts = getCounts(train)
     output = []
+    i = 0
     for sentence in test:
-        trellis = buildDaTrellis(internalMap, transitionMap, emissionMap, iCount, tCounts, eCounts, sentence, 0.01)
+        v, b = buildDaTrellis(internalMap, transitionMap, emissionMap, iCount, tCounts, eCounts, sentence, 0.0001)
+        bestSequence = getPath(v, b, sentence, emissionMap)
+        output.append(bestSequence)
+        #if i > 0:
+            #break
+        i+=1
+    '''
+    for o in output:
+        print(o)
+    '''
     return output
