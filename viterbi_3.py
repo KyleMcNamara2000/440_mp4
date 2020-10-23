@@ -45,7 +45,7 @@ def getCounts(train):
 
     for sentence in train:
         for pair in sentence:
-
+            '''
             if pair[0][:2] not in prefixes:
                 prefixes[pair[0][:2]] = {}
                 prefixes[pair[0][:2]][pair[1]] = 1
@@ -63,7 +63,7 @@ def getCounts(train):
                     suffixes[pair[0][-2:]][pair[1]] += 1
                 else:
                     suffixes[pair[0][-2:]][pair[1]] = 1
-
+            '''
             if pair[0] not in oneTimers:
                 oneTimers[pair[0]] = pair[1]
             elif pair[0] in oneTimers:
@@ -85,33 +85,28 @@ def getCounts(train):
             else:
                 eCounts[pair[1]] = 1
 
+
+    for word in oneTimers:
+        pair = (word, oneTimers[word])
+        if pair[0][:2] not in prefixes:
+            prefixes[pair[0][:2]] = {}
+            prefixes[pair[0][:2]][pair[1]] = 1
+        else:
+            if pair[1] in prefixes[pair[0][:2]]:
+                prefixes[pair[0][:2]][pair[1]] += 1
+            else:
+                prefixes[pair[0][:2]][pair[1]] = 1
+
+        if pair[0][-2:] not in suffixes:
+            suffixes[pair[0][-2:]] = {}
+            suffixes[pair[0][-2:]][pair[1]] = 1
+        else:
+            if pair[1] in suffixes[pair[0][-2:]]:
+                suffixes[pair[0][-2:]][pair[1]] += 1
+            else:
+                suffixes[pair[0][-2:]][pair[1]] = 1
+
     return I, T, E, iCount, tCounts, eCounts, oneTimers, prefixes, suffixes
-
-'''
-unnecessary fo da day
-def getProbabilities(I, T, E, iCount, tCounts, eCounts):
-    # I = map tag -> # times at start
-    # T = map tagA -> dict(tagB, # times showed up before tagA)
-    # E = map tag -> dict(word, # times tag made this word)
-    #set START prob = 1
-    for x in I:
-        assert (iCount / I[x] == 1)
-        I[x] = 1
-
-    #update T's
-    for tag, innerDict in T.items():
-        for key in innerDict:
-            #TODO: laplace?
-            innerDict[key] = innerDict[key] / tCounts[tag]
-
-    #update E's
-    for tag, innerDict in E.items():
-        for key in innerDict:
-            innerDict[key] = innerDict[key] / eCounts[tag]
-
-    return I, T, E
-'''
-
 
 
 def P_s(tag, internalMap, iCount, smoothing_parameter):
@@ -138,10 +133,17 @@ def P_e(word, tag, emissionMap, eCounts, smoothing_parameter, onesCount, oneTagC
     if word in emissionMap[tag]:
         return math.log(float(emissionMap[tag][word] + smoothing_parameter) / (eCounts[tag] + smoothing_parameter * (len(emissionMap[tag]) + 1)))
     else:
-        if word[:2] in preTopN and tag in preTopN[word[:2]]:
-            smoothing_parameter = smoothing_parameter * (preTopN[word[:2]][tag] / preTopNCount[word[:2]])
-        elif word[-2:] in suffTopN and tag in suffTopN[word[-2:]]:
-            smoothing_parameter = smoothing_parameter * (suffTopN[word[-2:]][tag] / suffTopNCount[word[-2:]])
+
+        if word[:2] in preTopN:
+            if tag in preTopN[word[:2]]:
+                smoothing_parameter = smoothing_parameter * (preTopN[word[:2]][tag] / preTopNCount[word[:2]])
+            else:
+                smoothing_parameter = 1 * 10 ** -20
+        elif word[-2:] in suffTopN:
+            if tag in suffTopN[word[-2:]]:
+                smoothing_parameter = smoothing_parameter * (suffTopN[word[-2:]][tag] / suffTopNCount[word[-2:]])
+            else:
+                smoothing_parameter = 1 * 10 ** -20
         elif tag in oneTagCounts:
             smoothing_parameter = smoothing_parameter * (oneTagCounts[tag] / onesCount)
         else:
