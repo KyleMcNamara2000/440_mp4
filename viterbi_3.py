@@ -256,19 +256,27 @@ def workTags(oneTimers):
     return oneTagCount
 
 def getterDone(suffixes, N):
+    buff = 3
     L = [] #list (count, suff)
+    toPop = []
     for suff in suffixes:
         count = 0
         for tag in suffixes[suff]:
             count += suffixes[suff][tag]
-        L.append((count, suff))
+        if count > buff:
+            L.append((count, suff))
+        else:
+            toPop.append(suff)
+    for x in toPop:
+        suffixes.pop(x)
     L.sort(reverse = True)
     for i in range(len(L)):
         if i > N:
             suffixes.pop(L[i][1])
     counts = {}
     for pair in L:
-        counts[pair[1]] = pair[0]
+        if pair[1] in suffixes:
+            counts[pair[1]] = pair[0]
     return suffixes, counts
 
 def viterbi_3(train, test):
@@ -282,8 +290,8 @@ def viterbi_3(train, test):
     # T = map tagA -> dict(tagB, # times showed up after tagA)
     # E = map tag -> dict(word, # times tag made this word)
     internalMap, transitionMap, emissionMap, iCount, tCounts, eCounts, oneTimers, prefixes, suffixes = getCounts(train)
-    suffTopN, suffTopNCount = getterDone(suffixes, 15)
-    preTopN, preTopNCount = getterDone(prefixes, 15)
+    suffTopN, suffTopNCount = getterDone(suffixes, 8)
+    preTopN, preTopNCount = getterDone(prefixes, 8)
     oneTagCounts = workTags(oneTimers)
     onesCount = len(oneTimers)
     output = []
